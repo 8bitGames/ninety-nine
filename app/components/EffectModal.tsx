@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card as CardType } from '../../server/game';
+import { Card as CardType } from '../lib/GameLogic';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -21,7 +21,7 @@ const EffectModal: React.FC<EffectModalProps> = ({ card, onConfirm, onCancel }) 
                 </CardHeader>
                 <CardContent className="space-y-6">
                     {children}
-                    <Button onClick={onCancel} variant="secondary" className="w-full">Cancel</Button>
+                    <Button onClick={onCancel} variant="secondary" className="w-full">취소</Button>
                 </CardContent>
             </Card>
         </div>
@@ -29,7 +29,7 @@ const EffectModal: React.FC<EffectModalProps> = ({ card, onConfirm, onCancel }) 
 
     if (card.value === '9') {
         return (
-            <ModalWrapper title="Select Effect for 9">
+            <ModalWrapper title="9 카드 효과 선택">
                 <div className="grid grid-cols-2 gap-4">
                     <Button onClick={() => onConfirm({ value: 9 })} className="h-20 text-2xl bg-indigo-600 hover:bg-indigo-700">+9</Button>
                     <Button onClick={() => onConfirm({ value: -9 })} className="h-20 text-2xl bg-pink-600 hover:bg-pink-700">-9</Button>
@@ -40,7 +40,7 @@ const EffectModal: React.FC<EffectModalProps> = ({ card, onConfirm, onCancel }) 
 
     if (card.value === '10') {
         return (
-            <ModalWrapper title="Select Effect for 10">
+            <ModalWrapper title="10 카드 효과 선택">
                 <div className="grid grid-cols-2 gap-4">
                     <Button onClick={() => onConfirm({ value: 10 })} className="h-20 text-2xl bg-indigo-600 hover:bg-indigo-700">+10</Button>
                     <Button onClick={() => onConfirm({ value: -10 })} className="h-20 text-2xl bg-pink-600 hover:bg-pink-700">-10</Button>
@@ -51,10 +51,10 @@ const EffectModal: React.FC<EffectModalProps> = ({ card, onConfirm, onCancel }) 
 
     if (card.value === '0') {
         return (
-            <ModalWrapper title="Select Effect for 0">
+            <ModalWrapper title="0 카드 효과 선택">
                 <div className="grid gap-4">
-                    <Button onClick={() => onConfirm({ direction: 'keep' })} className="h-16 text-lg bg-slate-700 hover:bg-slate-600">Keep Direction</Button>
-                    <Button onClick={() => onConfirm({ direction: 'change' })} className="h-16 text-lg bg-indigo-600 hover:bg-indigo-700">Change Direction</Button>
+                    <Button onClick={() => onConfirm({ direction: 'keep' })} className="h-16 text-lg bg-slate-700 hover:bg-slate-600">그대로 유지</Button>
+                    <Button onClick={() => onConfirm({ direction: 'change' })} className="h-16 text-lg bg-indigo-600 hover:bg-indigo-700">방향 바꾸기</Button>
                 </div>
             </ModalWrapper>
         );
@@ -62,7 +62,7 @@ const EffectModal: React.FC<EffectModalProps> = ({ card, onConfirm, onCancel }) 
 
     if (card.value === 'J') {
         return (
-            <ModalWrapper title="Set Total (60-99)">
+            <ModalWrapper title="숫자 바꾸기 (60-99)">
                 <div className="space-y-4">
                     <Input
                         type="number"
@@ -78,7 +78,7 @@ const EffectModal: React.FC<EffectModalProps> = ({ card, onConfirm, onCancel }) 
                         }}
                         className="w-full h-12 text-lg bg-green-600 hover:bg-green-700"
                     >
-                        Confirm
+                        확인
                     </Button>
                 </div>
             </ModalWrapper>

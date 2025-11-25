@@ -15,10 +15,12 @@ export interface Player {
     isAlive: boolean;
     isBot?: boolean;
     difficulty?: 'easy' | 'normal' | 'hard';
+    avatar?: string; // URL to avatar image
     cardCount?: number; // For UI consistency
 }
 
 export type GameStatus = 'WAITING' | 'PLAYING' | 'ENDED';
+export type BotState = 'idle' | 'thinking' | 'playing';
 
 export class GameLogic {
     deck: Card[] = [];
@@ -29,6 +31,11 @@ export class GameLogic {
     status: GameStatus = 'WAITING';
     discardPile: Card[] = [];
     winner: Player | null = null;
+
+    // Bot animation states
+    botState: BotState = 'idle';
+    lastPlayedBy: string | null = null;
+    scoreChange: number = 0;
 
     // Callback for state updates
     private onStateChange: ((state: any) => void) | null = null;
@@ -76,19 +83,19 @@ export class GameLogic {
             }
         };
 
-        addCard('normal', 1, 'A (+1)', '+1 to Total', 3);
-        addCard('normal', 2, '2 (+2)', '+2 to Total', 3);
-        addCard('normal', 3, '3 (+3)', '+3 to Total', 3);
-        addCard('normal', 4, '4 (+4)', '+4 to Total', 3);
-        addCard('normal', 5, '5 (+5)', '+5 to Total', 3);
-        addCard('normal', 6, '6 (+6)', '+6 to Total', 3);
-        addCard('normal', 7, '7 (+7)', '+7 to Total', 3);
-        addCard('normal', 8, '8 (+8)', '+8 to Total', 3);
-        addCard('normal', 10, '10 (+10)', '+10 to Total', 10);
-        addCard('rainbow', '9', '9 (±9)', '+9 or -9', 5);
-        addCard('rainbow', '10', '10 (±10)', '+10 or -10', 6);
-        addCard('rainbow', '0', '0 (Skip/Rev)', 'Keep Total, Skip or Reverse', 3);
-        addCard('rainbow', 'J', 'J (Set 60-99)', 'Set Total to 60-99', 1);
+        addCard('normal', 1, 'A (+1)', '+1 더하기', 3);
+        addCard('normal', 2, '2 (+2)', '+2 더하기', 3);
+        addCard('normal', 3, '3 (+3)', '+3 더하기', 3);
+        addCard('normal', 4, '4 (+4)', '+4 더하기', 3);
+        addCard('normal', 5, '5 (+5)', '+5 더하기', 3);
+        addCard('normal', 6, '6 (+6)', '+6 더하기', 3);
+        addCard('normal', 7, '7 (+7)', '+7 더하기', 3);
+        addCard('normal', 8, '8 (+8)', '+8 더하기', 3);
+        addCard('normal', 10, '10 (+10)', '+10 더하기', 10);
+        addCard('rainbow', '9', '9 (±9)', '+9 또는 -9', 5);
+        addCard('rainbow', '10', '10 (±10)', '+10 또는 -10', 6);
+        addCard('rainbow', '0', '0 (점프/반대)', '그대로 유지, 점프 또는 반대 방향', 3);
+        addCard('rainbow', 'J', 'J (변신)', '숫자를 60~99로 바꾸기', 1);
     }
 
     private shuffleDeck() {
@@ -98,10 +105,10 @@ export class GameLogic {
         }
     }
 
-    addPlayer(id: string, name: string, isBot: boolean = false, difficulty?: 'easy' | 'normal' | 'hard'): boolean {
+    addPlayer(id: string, name: string, isBot: boolean = false, difficulty?: 'easy' | 'normal' | 'hard', avatar?: string): boolean {
         if (this.status !== 'WAITING') return false;
         if (this.players.length >= 4) return false;
-        this.players.push({ id, name, hand: [], isAlive: true, isBot, difficulty });
+        this.players.push({ id, name, hand: [], isAlive: true, isBot, difficulty, avatar });
         this.emitState();
         return true;
     }
@@ -127,7 +134,7 @@ export class GameLogic {
         this.winner = null;
 
         this.emitState();
-        this.log('Game started!');
+        this.log('게임이 시작되었습니다!');
 
         this.checkBotTurn();
     }
@@ -136,19 +143,19 @@ export class GameLogic {
         this.status = 'WAITING'; // Briefly reset to waiting or just re-run start logic
         // Actually, just re-running start logic is enough but we need to keep players
         this.startGame();
-        this.log('Game restarted!');
+        this.log('게임이 다시 시작되었습니다!');
     }
 
     playCard(playerId: string, cardId: string, options?: { value?: number, direction?: 'keep' | 'change' }): { success: boolean, message?: string } {
-        if (this.status !== 'PLAYING') return { success: false, message: 'Game not active' };
+        if (this.status !== 'PLAYING') return { success: false, message: '게임이 진행 중이 아닙니다' };
 
         const playerIndex = this.players.findIndex(p => p.id === playerId);
-        if (playerIndex === -1) return { success: false, message: 'Player not found' };
-        if (playerIndex !== this.turnIndex) return { success: false, message: 'Not your turn' };
+        if (playerIndex === -1) return { success: false, message: '플레이어를 찾을 수 없습니다' };
+        if (playerIndex !== this.turnIndex) return { success: false, message: '당신의 차례가 아닙니다' };
 
         const player = this.players[playerIndex];
         const cardIndex = player.hand.findIndex(c => c.id === cardId);
-        if (cardIndex === -1) return { success: false, message: 'Card not in hand' };
+        if (cardIndex === -1) return { success: false, message: '손에 없는 카드입니다' };
 
         const card = player.hand[cardIndex];
         let newTotal = this.currentTotal;
@@ -160,13 +167,13 @@ export class GameLogic {
                 if (options?.value === 9 || options?.value === -9) {
                     newTotal += options.value;
                 } else {
-                    return { success: false, message: 'Must select +9 or -9' };
+                    return { success: false, message: '+9 또는 -9를 선택해야 합니다' };
                 }
             } else if (card.value === '10') {
                 if (options?.value === 10 || options?.value === -10) {
                     newTotal += options.value;
                 } else {
-                    return { success: false, message: 'Must select +10 or -10' };
+                    return { success: false, message: '+10 또는 -10을 선택해야 합니다' };
                 }
             } else if (card.value === '0') {
                 newTotal += 0;
@@ -177,17 +184,21 @@ export class GameLogic {
                 if (options?.value && options.value >= 60 && options.value <= 99) {
                     newTotal = options.value;
                 } else {
-                    return { success: false, message: 'Must select value between 60 and 99' };
+                    return { success: false, message: '60에서 99 사이의 숫자를 선택해야 합니다' };
                 }
             }
         }
 
         if (newTotal > 99) {
             this.eliminatePlayer(playerIndex);
-            return { success: true, message: 'Player eliminated' };
+            return { success: true, message: '플레이어 탈락' };
         }
 
-        this.currentTotal = newTotal;
+        // Track score change for animation
+        this.scoreChange = newTotal - this.currentTotal;
+        this.lastPlayedBy = playerId;
+
+        this.currentTotal = Math.max(0, newTotal);
         player.hand.splice(cardIndex, 1);
         this.discardPile.push(card);
 
@@ -227,13 +238,13 @@ export class GameLogic {
         player.isAlive = false;
         this.discardPile.push(...player.hand);
         player.hand = [];
-        this.log(`${player.name} eliminated!`);
+        this.log(`${player.name} 탈락!`);
 
         const survivors = this.players.filter(p => p.isAlive);
         if (survivors.length === 1) {
             this.winner = survivors[0];
             this.status = 'ENDED';
-            this.log(`${this.winner.name} wins!`);
+            this.log(`${this.winner.name} 승리!`);
             this.emitState();
         } else {
             this.nextTurn();
@@ -245,10 +256,32 @@ export class GameLogic {
         if (this.status !== 'PLAYING') return;
         const currentPlayer = this.players[this.turnIndex];
         if (currentPlayer && currentPlayer.isBot && currentPlayer.isAlive) {
+            // Phase 1: Start thinking
+            this.botState = 'thinking';
+            this.emitState();
+
+            // Phase 2: Think for a while (1.5-3 seconds based on difficulty)
+            const thinkTime = currentPlayer.difficulty === 'hard' ? 2500 + Math.random() * 1000
+                            : currentPlayer.difficulty === 'normal' ? 1800 + Math.random() * 800
+                            : 1200 + Math.random() * 600;
+
             setTimeout(() => {
-                if (this.status !== 'PLAYING' || this.players[this.turnIndex].id !== currentPlayer.id) return;
-                this.playBotMove(currentPlayer);
-            }, Math.random() * 2000 + 1000);
+                if (this.status !== 'PLAYING' || this.players[this.turnIndex].id !== currentPlayer.id) {
+                    this.botState = 'idle';
+                    return;
+                }
+
+                // Phase 3: Show "playing" state briefly
+                this.botState = 'playing';
+                this.emitState();
+
+                // Phase 4: Actually play the card after a brief pause
+                setTimeout(() => {
+                    if (this.status !== 'PLAYING' || this.players[this.turnIndex].id !== currentPlayer.id) return;
+                    this.playBotMove(currentPlayer);
+                    this.botState = 'idle';
+                }, 500);
+            }, thinkTime);
         }
     }
 
@@ -267,76 +300,158 @@ export class GameLogic {
     }
 
     private getBotMove(bot: Player): { cardId: string, options?: any } | null {
-        const validMoves: { cardId: string, options?: any, newTotal: number }[] = [];
         const hand = bot.hand;
+        const current = this.currentTotal;
 
-        // Simulate all moves
+        // Build all possible moves with metadata
+        interface Move {
+            cardId: string;
+            card: Card;
+            options?: any;
+            newTotal: number;
+            isSaver: boolean;
+        }
+
+        const allMoves: Move[] = [];
+        const saverValues = ['0', '9', '10', 'J']; // Rainbow cards that can save you
+
         for (const card of hand) {
+            const isSaver = card.type === 'rainbow' && saverValues.includes(String(card.value));
+
             if (card.type === 'normal') {
                 const val = card.value as number;
-                validMoves.push({ cardId: card.id, newTotal: this.currentTotal + val });
+                allMoves.push({ cardId: card.id, card, newTotal: current + val, isSaver: false });
             } else if (card.type === 'rainbow') {
                 if (card.value === '9') {
-                    validMoves.push({ cardId: card.id, options: { value: 9 }, newTotal: this.currentTotal + 9 });
-                    validMoves.push({ cardId: card.id, options: { value: -9 }, newTotal: this.currentTotal - 9 });
+                    allMoves.push({ cardId: card.id, card, options: { value: 9 }, newTotal: current + 9, isSaver });
+                    allMoves.push({ cardId: card.id, card, options: { value: -9 }, newTotal: current - 9, isSaver });
                 } else if (card.value === '10') {
-                    validMoves.push({ cardId: card.id, options: { value: 10 }, newTotal: this.currentTotal + 10 });
-                    validMoves.push({ cardId: card.id, options: { value: -10 }, newTotal: this.currentTotal - 10 });
+                    allMoves.push({ cardId: card.id, card, options: { value: 10 }, newTotal: current + 10, isSaver });
+                    allMoves.push({ cardId: card.id, card, options: { value: -10 }, newTotal: current - 10, isSaver });
                 } else if (card.value === '0') {
-                    validMoves.push({ cardId: card.id, options: { direction: 'keep' }, newTotal: this.currentTotal });
-                    validMoves.push({ cardId: card.id, options: { direction: 'change' }, newTotal: this.currentTotal });
+                    allMoves.push({ cardId: card.id, card, options: { direction: 'keep' }, newTotal: current, isSaver });
+                    allMoves.push({ cardId: card.id, card, options: { direction: 'change' }, newTotal: current, isSaver });
                 } else if (card.value === 'J') {
-                    // Bot strategy for J: Set to 99 if safe, or 60
-                    validMoves.push({ cardId: card.id, options: { value: 99 }, newTotal: 99 });
-                    validMoves.push({ cardId: card.id, options: { value: 60 }, newTotal: 60 });
+                    // J card options: strategic values
+                    allMoves.push({ cardId: card.id, card, options: { value: 99 }, newTotal: 99, isSaver });
+                    allMoves.push({ cardId: card.id, card, options: { value: 60 }, newTotal: 60, isSaver });
+                    allMoves.push({ cardId: card.id, card, options: { value: 89 }, newTotal: 89, isSaver });
                 }
             }
         }
 
-        const safeMoves = validMoves.filter(m => m.newTotal <= 99);
+        const safeMoves = allMoves.filter(m => m.newTotal >= 0 && m.newTotal <= 99);
 
         if (safeMoves.length === 0) {
-            // No safe moves, just die
-            return validMoves[0] || null;
+            return allMoves[0] || null; // Forced to die
         }
 
-        // Difficulty Logic
+        // === EASY: Random safe move ===
         if (bot.difficulty === 'easy') {
-            return safeMoves[Math.floor(Math.random() * safeMoves.length)];
+            return this.pickRandom(safeMoves);
         }
 
+        // === NORMAL: Avoid 99, prefer middle range ===
         if (bot.difficulty === 'normal') {
-            // Avoid 99 if possible, otherwise random safe
             const not99 = safeMoves.filter(m => m.newTotal < 99);
-            if (not99.length > 0) return not99[Math.floor(Math.random() * not99.length)];
-            return safeMoves[Math.floor(Math.random() * safeMoves.length)];
+            if (not99.length === 0) return this.pickRandom(safeMoves);
+
+            // Prefer moves that keep total in 40-85 range
+            const comfortable = not99.filter(m => m.newTotal >= 30 && m.newTotal <= 85);
+            if (comfortable.length > 0) return this.pickRandom(comfortable);
+
+            // Otherwise just avoid 99
+            return this.pickRandom(not99);
         }
 
-        if (bot.difficulty === 'hard') {
-            // Save special cards (K, 10, 4, 0, 9) for later
-            // K=10(normal), 4=0(normal), 0=0(rainbow), 9=9(rainbow), 10=10(rainbow)
-            // Actually in this deck: 
-            // Normal: 10 (+10)
-            // Rainbow: 9, 10, 0, J
-            // "Savers": 0, 10(rainbow), 9(rainbow), J
+        // === HARD: Advanced strategic AI ===
+        return this.getHardBotMove(bot, safeMoves, current);
+    }
 
-            const savers = ['0', '10', '9', 'J'];
-            const nonSavers = safeMoves.filter(m => {
-                const card = hand.find(c => c.id === m.cardId);
-                return card && !savers.includes(String(card.value));
-            });
+    private getHardBotMove(bot: Player, safeMoves: { cardId: string; card: Card; options?: any; newTotal: number; isSaver: boolean }[], current: number): { cardId: string; options?: any } {
+        const not99 = safeMoves.filter(m => m.newTotal < 99);
+        const nonSaverMoves = safeMoves.filter(m => !m.isSaver);
+        const saverMoves = safeMoves.filter(m => m.isSaver);
 
-            if (this.currentTotal < 85 && nonSavers.length > 0) {
-                return nonSavers[Math.floor(Math.random() * nonSavers.length)];
+        // Count alive players to determine aggression
+        const alivePlayers = this.players.filter(p => p.isAlive).length;
+        const isEndGame = alivePlayers <= 2;
+
+        // Strategy 1: Low total (0-50) - Use high value normal cards to build up
+        if (current < 50) {
+            const highValueMoves = nonSaverMoves
+                .filter(m => m.newTotal > current && m.newTotal <= 85)
+                .sort((a, b) => b.newTotal - a.newTotal);
+            if (highValueMoves.length > 0) {
+                return this.pickRandom(highValueMoves.slice(0, 2)); // Pick from top 2
             }
-
-            // If high total or only savers left, use best saver
-            // Prioritize keeping total low or skipping
-            // Simple hard logic: just pick random safe move for now, but could be smarter
-            return safeMoves[Math.floor(Math.random() * safeMoves.length)];
         }
 
-        return safeMoves[0];
+        // Strategy 2: Mid range (50-80) - Play conservatively, save special cards
+        if (current >= 50 && current < 80) {
+            const midRangeMoves = nonSaverMoves.filter(m => m.newTotal >= 50 && m.newTotal <= 89);
+            if (midRangeMoves.length > 0) {
+                return this.pickRandom(midRangeMoves);
+            }
+        }
+
+        // Strategy 3: High range (80-89) - Start using savers if needed
+        if (current >= 80 && current < 90) {
+            // Try to use low value normal cards first
+            const lowMoves = nonSaverMoves.filter(m => m.newTotal <= 95 && m.newTotal < 99);
+            if (lowMoves.length > 0) {
+                return this.pickRandom(lowMoves);
+            }
+            // Use minus options from savers
+            const minusMoves = saverMoves.filter(m => m.newTotal < current);
+            if (minusMoves.length > 0) {
+                return this.pickRandom(minusMoves);
+            }
+        }
+
+        // Strategy 4: Critical zone (90-99) - Use savers strategically
+        if (current >= 90) {
+            // Priority: -9, -10, 0, then J to set lower
+            const escapeMoves = safeMoves.filter(m => m.newTotal < 90).sort((a, b) => a.newTotal - b.newTotal);
+            if (escapeMoves.length > 0) {
+                // In endgame, try to set to 99 to pressure opponent
+                if (isEndGame && current < 99) {
+                    const set99 = safeMoves.find(m => m.newTotal === 99 && m.card.value === 'J');
+                    if (set99 && Math.random() > 0.3) return set99; // 70% chance to be aggressive
+                }
+                return escapeMoves[0]; // Safest escape
+            }
+            // Use 0 card to maintain
+            const zeroMoves = safeMoves.filter(m => m.card.value === '0');
+            if (zeroMoves.length > 0) {
+                // Change direction if next player might have advantage
+                return Math.random() > 0.5
+                    ? zeroMoves.find(m => m.options?.direction === 'change') || zeroMoves[0]
+                    : zeroMoves[0];
+            }
+        }
+
+        // Strategy 5: Aggressive J card usage in endgame
+        if (isEndGame && current < 85) {
+            const jCard = safeMoves.find(m => m.card.value === 'J' && m.newTotal === 99);
+            if (jCard && Math.random() > 0.6) { // 40% chance to be aggressive
+                return jCard;
+            }
+        }
+
+        // Fallback: Pick best available move avoiding 99
+        if (not99.length > 0) {
+            // Prefer moves in comfortable range (60-89)
+            const comfortable = not99.filter(m => m.newTotal >= 60 && m.newTotal <= 89);
+            if (comfortable.length > 0) return this.pickRandom(comfortable);
+            return this.pickRandom(not99);
+        }
+
+        return this.pickRandom(safeMoves);
+    }
+
+    private pickRandom<T>(arr: T[]): T {
+        return arr[Math.floor(Math.random() * arr.length)];
     }
 
     getState() {
@@ -347,16 +462,19 @@ export class GameLogic {
                 cardCount: p.hand.length,
                 isAlive: p.isAlive,
                 isBot: p.isBot,
-                // For local game, we might want to see bot hands for debugging, but usually hide them
-                // But since this is client-side, we technically have access. 
-                // We'll filter in the UI or here. Let's send everything and filter in UI for "My Hand"
+                avatar: p.avatar,
             })),
             currentTotal: this.currentTotal,
             turnIndex: this.turnIndex,
             direction: this.direction,
             deckCount: this.deck.length,
             status: this.status,
-            winner: this.winner ? { name: this.winner.name } : null
+            lastCard: this.discardPile.length > 0 ? this.discardPile[this.discardPile.length - 1] : null,
+            winner: this.winner ? { name: this.winner.name } : null,
+            // Animation states
+            botState: this.botState,
+            lastPlayedBy: this.lastPlayedBy,
+            scoreChange: this.scoreChange,
         };
     }
 

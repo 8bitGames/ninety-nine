@@ -23,30 +23,64 @@ export default function Home() {
   const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
   const [mode, setMode] = useState<'lobby' | 'single'>('lobby');
 
-  const startGame = () => {
-    if (!playerName.trim()) return;
+  const botImages = [
+    '/bot-icon/optimized/image (10).webp',
+    '/bot-icon/optimized/image (11).webp',
+    '/bot-icon/optimized/image (12).webp',
+    '/bot-icon/optimized/image (13).webp',
+    '/bot-icon/optimized/image (14).webp',
+    '/bot-icon/optimized/image (15).webp',
+    '/bot-icon/optimized/image (16).webp',
+    '/bot-icon/optimized/image (17).webp',
+    '/bot-icon/optimized/image (18).webp',
+    '/bot-icon/optimized/image (19).webp',
+  ];
 
+  const createGame = (avatars: string[]) => {
     const game = new GameLogic(
       (state) => {
-        setGameState({ ...state }); // Force new object reference
-        // Update hand
+        setGameState({ ...state });
         const me = game.getPlayerHand('player-1');
         setMyHand([...me]);
       },
       (msg) => {
         setLogs(prev => [...prev, msg].slice(-3));
+        setTimeout(() => {
+          setLogs(prev => prev.filter(log => log !== msg));
+        }, 3000);
       }
     );
 
-    game.addPlayer('player-1', playerName);
+    game.addPlayer('player-1', playerName, false, undefined, '/bot-icon/optimized/image (9).webp');
 
     for (let i = 0; i < botCount; i++) {
-      game.addPlayer(`bot-${i}`, `Bot ${i + 1}`, true, difficulty);
+      const avatar = avatars[i % avatars.length];
+      game.addPlayer(`bot-${i}`, `봇 ${i + 1}`, true, difficulty, avatar);
     }
 
     game.startGame();
     gameRef.current = game;
+  };
+
+  const startGame = () => {
+    if (!playerName.trim()) return;
+    const shuffledAvatars = [...botImages].sort(() => Math.random() - 0.5);
+    createGame(shuffledAvatars);
     setGameStarted(true);
+  };
+
+  const exitGame = () => {
+    setGameStarted(false);
+    setGameState(null);
+    setMyHand([]);
+    setLogs([]);
+    gameRef.current = null;
+    setMode('lobby');
+  };
+
+  const restartWithNewAvatars = () => {
+    const shuffledAvatars = [...botImages].sort(() => Math.random() - 0.5);
+    createGame(shuffledAvatars);
   };
 
   if (gameStarted && gameRef.current && gameState) {
@@ -59,6 +93,8 @@ export default function Home() {
           logs={logs}
           playerName={playerName}
           playerId="player-1"
+          onExit={exitGame}
+          onRestartWithNewAvatars={restartWithNewAvatars}
         />
       </MobileLayout>
     );
@@ -71,19 +107,19 @@ export default function Home() {
           <h1 className="text-4xl font-black tracking-tighter bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
             99 GAME
           </h1>
-          <p className="text-slate-500 text-sm">Survival Card Game</p>
+          <p className="text-slate-500 text-sm">서바이벌 카드 게임</p>
         </div>
 
         <Card className="border-slate-200 shadow-xl">
           <CardHeader>
-            <CardTitle className="text-center">Welcome</CardTitle>
-            <CardDescription className="text-center">Enter your name to start</CardDescription>
+            <CardTitle className="text-center">환영합니다!</CardTitle>
+            <CardDescription className="text-center">이름을 입력하고 게임을 시작하세요</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="relative">
               <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Your Name"
+                placeholder="이름 입력"
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
                 className="pl-9"
@@ -101,7 +137,7 @@ export default function Home() {
             >
               <div className="flex flex-col items-center gap-2">
                 <Gamepad2 className="h-8 w-8" />
-                <span>Single Player</span>
+                <span>시작하기</span>
               </div>
             </Button>
           </div>
@@ -113,12 +149,12 @@ export default function Home() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Bot className="h-5 w-5 text-indigo-500" />
-                  Game Setup
+                  게임 설정
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Opponents</label>
+                  <label className="text-sm font-medium">상대방 수</label>
                   <div className="flex gap-2">
                     {[1, 2, 3].map(count => (
                       <Button
@@ -127,13 +163,13 @@ export default function Home() {
                         onClick={() => setBotCount(count)}
                         className="flex-1"
                       >
-                        {count} Bot{count > 1 ? 's' : ''}
+                        {count}명
                       </Button>
                     ))}
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Difficulty</label>
+                  <label className="text-sm font-medium">난이도</label>
                   <div className="flex gap-2">
                     {['easy', 'normal', 'hard'].map(diff => (
                       <Button
@@ -142,7 +178,7 @@ export default function Home() {
                         onClick={() => setDifficulty(diff as any)}
                         className="flex-1 capitalize"
                       >
-                        {diff}
+                        {diff === 'easy' ? '쉬움' : diff === 'normal' ? '보통' : '어려움'}
                       </Button>
                     ))}
                   </div>
@@ -150,8 +186,8 @@ export default function Home() {
               </CardContent>
             </Card>
             <div className="flex gap-3">
-              <Button onClick={() => setMode('lobby')} variant="ghost" className="flex-1">Back</Button>
-              <Button onClick={startGame} className="flex-[2] bg-indigo-600 hover:bg-indigo-700">Start Game</Button>
+              <Button onClick={() => setMode('lobby')} variant="ghost" className="flex-1">뒤로</Button>
+              <Button onClick={startGame} className="flex-[2] bg-indigo-600 hover:bg-indigo-700">게임 시작</Button>
             </div>
           </div>
         )}
